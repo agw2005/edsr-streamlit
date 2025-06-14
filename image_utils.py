@@ -4,6 +4,7 @@ from torchvision import transforms
 from PIL import Image
 import matplotlib.pyplot as plt
 import numpy as np
+import gc
 
 class ResidualBlock(nn.Module):
     def __init__(self, num_channels):
@@ -39,21 +40,7 @@ class EDSR(nn.Module):
         x = self.upsample(x)
         return x
 
-def edsr_max_infer(image_input, model_path, device='cuda', show=False, save_path=None):
-    # Perform inference with a trained EDSR model
-    # Arguments :
-    # # image_input (str or PIL.Image): Path to image or PIL Image
-    # # model_path (str): Path to .pth model weights (Assumed to be a state dictionary)
-    # # device (str): Device to use ('cuda' or 'cpu')
-    # # show (bool): If True, display input vs output images (and also its respective histogram)
-    # # save_path (str): If provided, save the result image to this path
-    # Return :
-    # # PIL.Image: The high-resolution output image.
-    
-    # Load the model
-    model = EDSR().to(device)
-    state_dict = torch.load(model_path, map_location=device)
-    model.load_state_dict(state_dict)
+def edsr_max_infer(image_input, model, device='cpu', show=False, save_path=None):
     model.eval()
     
     # Load image
@@ -64,54 +51,47 @@ def edsr_max_infer(image_input, model_path, device='cuda', show=False, save_path
     else:
         raise ValueError("image_input must be a file path or PIL.Image")
     
-    # Transform input
     transform = transforms.ToTensor()
-    input_tensor = transform(image).unsqueeze(0).to(device)  # [1, 3, H, W]
+    input_tensor = transform(image).unsqueeze(0).to(device)
     
-    # Inference
     with torch.no_grad():
-        output_tensor = model(input_tensor)
-    
-    # Clamp and convert output tensor to image
-    output_tensor = output_tensor.squeeze(0).cpu().clamp(0, 1)
+        output_tensor = model(input_tensor).squeeze(0).cpu().clamp(0, 1)
+
+    # Cleanup
+    del input_tensor
+    gc.collect()
+
     output_image = transforms.ToPILImage()(output_tensor)
-
-    if show:
-        # === First figure: image comparison ===
-        fig_img, axes_img = plt.subplots(1, 2, figsize=(12, 8))
-        axes_img[0].imshow(image)
-        axes_img[0].set_title("Input (Low Resolution)")
-        axes_img[0].axis("off")
-
-        axes_img[1].imshow(output_image)
-        axes_img[1].set_title("Output (Super Resolution)")
-        axes_img[1].axis("off")
-
-        plt.tight_layout()
-        plt.show()
-
-        # === Second figure: histogram comparison ===
-        fig_hist, axes_hist = plt.subplots(1, 2, figsize=(13, 5))
-
-        def plot_hist(ax, img, title):
-            img_np = np.array(img)
-            colors = ('r', 'g', 'b')
-            for i, color in enumerate(colors):
-                hist = np.histogram(img_np[:, :, i], bins=256, range=(0, 255))[0]
-                ax.plot(hist, color=color, label=color)
-            ax.set_title(title)
-            ax.set_xlim([0, 255])
-            ax.set_xlabel("Pixel Intensity")
-            ax.set_ylabel("Frequency")
-            ax.legend()
-
-        plot_hist(axes_hist[0], image, "Input Histogram")
-        plot_hist(axes_hist[1], output_image, "Output Histogram")
-
-        plt.tight_layout()
-        plt.show()
 
     if save_path:
         output_image.save(save_path)
 
     return output_image
+
+def run_inference_and_cleanup(image, model_path):
+    device = 'cpu'
+    model = EDSR().to(device)
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.eval()
+
+    transform = transforms.ToTensor()
+    input_tensor = transform(image).unsqueeze(0).to(device)
+
+    with torch.no_grad():
+        output_tensor = model(input_tensor).squeeze(0).cpu().clamp(0, 1)
+
+    # Cleanup
+    del model
+    del input_tensor
+    torch.cuda.empty_cache()
+    gc.collect()
+
+    return transforms.ToPILImage()(output_tensor)
+
+@st.cache_resource
+def load_model(model_path):
+    device = 'cpu'
+    model = EDSR().to(device)
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.eval()
+    return model

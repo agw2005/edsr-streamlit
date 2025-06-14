@@ -14,10 +14,19 @@ st.markdown("This implementation is a simplified version of the Enhanced Deep Su
 st.markdown("If the input is a gif and webp, the model will only process the first frame")
 
 uploaded_file = st.file_uploader("Upload Your Image ⬇️", type=["jpg", "jpeg", "png", "bmp", "tiff", "gif", "webp"])
-model = "best_edsr.pth"
+# Load the model once (cached)
+model_path = "best_edsr.pth"
+device = "cpu"
+model = load_model(model_path)
+
+MAX_SIZE = (512, 512)
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file).convert("RGB")
+    image = image.resize(MAX_SIZE, Image.LANCZOS)
+    if getattr(image, "is_animated", False):
+        image.seek(0)
+    image = image.convert("RGB")
     st.image(image, caption="Input Image (Low Resolution)", use_container_width=True)
 
     # Run inference
