@@ -5,6 +5,7 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import numpy as np
 import gc
+import streamlit as st
 
 class ResidualBlock(nn.Module):
     def __init__(self, num_channels):
