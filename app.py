@@ -19,11 +19,16 @@ model_path = "best_edsr.pth"
 device = "cpu"
 model = load_model(model_path)
 
-MAX_SIZE = (512, 512)
+MAX_HEIGHT = 512
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file).convert("RGB")
-    image = image.resize(MAX_SIZE, Image.LANCZOS)
+    width, height = image.size
+    if height > MAX_HEIGHT:
+        aspect_ratio = width / height
+        new_height = MAX_HEIGHT
+        new_width = int(aspect_ratio * new_height)
+        image = image.resize((new_width, new_height), Image.LANCZOS)
     if getattr(image, "is_animated", False):
         image.seek(0)
     image = image.convert("RGB")
