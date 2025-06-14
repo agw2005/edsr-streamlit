@@ -33,7 +33,7 @@ if uploaded_file is not None:
     with st.spinner("Running super-resolution inference... (This might take up to 2 minutes depending on the size of the image)"):
         model_path = model  # adjust if different
         device = "cpu"  # since you assume no CUDA device
-        output_image = edsr_max_infer(image, model_path=model_path, device=device)
+        output_image = edsr_max_infer(image, model_path, device=device)
 
     st.success("Inference complete! Here's the result:")
 
